@@ -11,7 +11,7 @@ from datetime import UTC
 from pathlib import Path
 from unittest import mock
 
-from support import journal, make_root, yaml
+from support import journal, make_root, symlink_or_skip, yaml
 
 
 class Journal(unittest.TestCase):
@@ -137,7 +137,7 @@ class JournalPrivacy(unittest.TestCase):
             d.mkdir(parents=True)
             elsewhere = Path(t) / "outside"
             elsewhere.mkdir()
-            (d / "journal").symlink_to(elsewhere)
+            symlink_or_skip(elsewhere, d / "journal")
             with self.assertRaises(ValueError):
                 journal.ensure_journal(d)
 

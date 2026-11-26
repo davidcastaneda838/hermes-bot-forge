@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from support import forge, health, manage, policy, portable, survey, tools, yaml
+from support import forge, health, manage, policy, portable, survey, symlink_or_skip, tools, yaml
 
 
 class SharedPolicyRenderTests(unittest.TestCase):
@@ -252,7 +252,7 @@ class SharedPolicyPathSafetyTests(unittest.TestCase):
         """
         outside = Path(self.tmp.name) / "elsewhere.md"
         outside.write_text("- ask first\n", encoding="utf-8")
-        (self.root / "shared" / "BOT-POLICY.md").symlink_to(outside)
+        symlink_or_skip(outside, self.root / "shared" / "BOT-POLICY.md")
         self.assertTrue(policy.policy_path(self.root, "shared/BOT-POLICY.md").exists())
 
     def test_comments_only_canonical_policy_is_rejected_not_inlined(self):

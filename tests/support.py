@@ -10,12 +10,23 @@ Everything here is imported outright. Nothing is wrapped in `except ImportError`
 that has stopped importing is the most valuable thing this suite can report, and turning that
 into a skip is what let two unloadable releases ship with CI green.
 """
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT.parent))
 sys.path.insert(0, str(ROOT))
+
+# Fork change: hermetic notify tests. When the suite runs inside a Hermes process
+# (hermes verify, a Bot chat), notify._scoped() would read the real install's
+# email secrets instead of the fixtures. Stub the resolver module so its import
+# fails and _env() takes the plain environment/.env fallback the tests expect.
+import types as _types
+sys.modules["agent.secret_scope"] = _types.ModuleType("agent.secret_scope")
+for _k in list(os.environ):
+    if _k.startswith("EMAIL_"):
+        del os.environ[_k]
 
 import forge  # noqa: E402
 import yaml  # noqa: E402
@@ -33,6 +44,16 @@ import survey  # noqa: E402
 import team  # noqa: E402
 import takeover  # noqa: E402
 import tools  # noqa: E402
+
+
+def symlink_or_skip(src: Path, dst: Path):
+    """Create a symlink or skip: Windows grants symlink creation only with Developer
+    Mode/admin. Environmental, not a code signal — same policy as upstream's skips."""
+    import unittest
+    try:
+        os.symlink(str(src), str(dst))
+    except OSError as exc:
+        raise unittest.SkipTest(f"symlink privilege unavailable on this host: {exc}")
 
 
 def make_root(tmp: Path, profiles=(), titles=None, root_display=None):

@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from support import forge, make_root  # noqa: F401  (arranges sys.path)
+from support import forge, make_root, symlink_or_skip  # noqa: F401  (arranges sys.path)
 
 import outside  # noqa: E402
 
@@ -110,7 +110,7 @@ class ItRefusesBeforeSpawning(unittest.TestCase):
 
     def test_a_symlinked_directory_is_refused(self):
         link = Path(self.tmp.name) / "link"
-        link.symlink_to(self.where)
+        symlink_or_skip(self.where, link)
         self.assertFalse(self._run(directory=str(link))["ok"])
 
     def test_no_directory_at_all(self):
