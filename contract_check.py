@@ -147,15 +147,34 @@ PROBES = {
     "platform_toolsets_cli": lambda root, home: _probe_toolsets(home),
 }
 
+# Per-profile contracts: they are about Bot profiles, and the hermes root is not one —
+# probing it only ever yields a "profile.yaml unreadable" error note that repeats on
+# every check (a permanent probe CHANGED, drift: true forever). The root home counts
+# only when it is itself a Bot profile (forge.bot_mode_install semantics: it carries
+# the ui_meta['hermes-bots'] marker). Root-only contracts (env_keys) keep probing it.
+PER_PROFILE = ("bot_meta", "platform_toolsets_cli")
+
+
+def _root_is_bot_profile(root: Path) -> bool:
+    try:
+        import yaml
+        data = yaml.safe_load((root / "profile.yaml").read_text(encoding="utf-8")) or {}
+    except Exception:
+        return False
+    return isinstance((data.get("ui_meta") or {}).get("hermes-bots"), dict)
+
 
 def probe(root: Path) -> "tuple[dict, dict]":
     """({contract: {home: shape}}, notes) — per-home shapes (never values), so a single
     drifted profile is visible even where others are intact. A probe error is captured
     as an 'error: ...' shape so it diffs loudly instead of disappearing."""
     shapes, notes = {}, []
+    root_bot = _root_is_bot_profile(root)
     for name, probe_fn in PROBES.items():
         per_home = {}
         for home in _homes(root):
+            if name in PER_PROFILE and home == root and not root_bot:
+                continue
             key = home.name or "<root>"
             shape, detail = probe_fn(root, home)
             if detail:

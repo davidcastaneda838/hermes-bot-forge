@@ -151,6 +151,59 @@ class Mutations(IntactFixture):
             ["platform_toolsets"]["cli"], "terminal")
 
 
+class RootIsNotAProfile(unittest.TestCase):
+    """Regression (live false-positive drift): the hermes root is not a Bot profile. Per-profile
+    contracts (bot_meta, platform_toolsets_cli) must not probe it, or every check emits a
+    'profile.yaml unreadable' note that lands in the baseline and repeats forever."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = make_contract_root(Path(self._tmp.name))
+        # A plain install: the root has no profile.yaml — it is not a live profile.
+        (self.root / "profile.yaml").unlink()
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_no_root_note_and_no_drift_after_baseline(self):
+        out = run(self.root, "baseline")
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["notes"], [], "no probe note may exist for the root home")
+        record = json.loads((self.root / ".bot-forge" / "contract_baseline.json").read_text())
+        self.assertNotIn(self.root.name, record["contracts"]["bot_meta"])
+        check = run(self.root, "check")
+        self.assertTrue(check["ok"])
+        self.assertFalse(check["drift"])
+        self.assertEqual(check["changed"], [])
+
+    def test_root_config_change_is_not_a_per_profile_drift(self):
+        run(self.root, "baseline")
+        cfg = yaml.safe_load((self.root / "config.yaml").read_text(encoding="utf-8"))
+        cfg["platform_toolsets"]["cli"] = "terminal"
+        (self.root / "config.yaml").write_text(yaml.safe_dump(cfg), encoding="utf-8")
+        check = run(self.root, "check")
+        self.assertFalse(check["drift"])  # the root is not a live profile here
+
+    def test_root_with_hermes_bots_marker_is_still_probed(self):
+        (self.root / "profile.yaml").write_text(
+            yaml.safe_dump({"ui_meta": {"hermes-bots": dict(BOT_META)}}), encoding="utf-8")
+        run(self.root, "baseline")
+        record = json.loads((self.root / ".bot-forge" / "contract_baseline.json").read_text())
+        self.assertEqual(record["contracts"]["bot_meta"].get(self.root.name), "present")
+
+    def test_old_baseline_with_root_keys_degrades_cleanly(self):
+        run(self.root, "baseline")
+        store = self.root / ".bot-forge" / "contract_baseline.json"
+        record = json.loads(store.read_text(encoding="utf-8"))
+        record["contracts"]["bot_meta"]["<root>"] = "error: profile.yaml unreadable (stale)"
+        store.write_text(json.dumps(record), encoding="utf-8")
+        check = run(self.root, "check")
+        self.assertTrue(check["ok"])  # execution success; drift semantics unchanged
+        self.assertTrue(check["drift"])
+        self.assertIn("bot_meta", check["changed"])
+        self.assertIn("stale", check["contracts"][0]["detail"])
+
+
 class GuardRails(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
