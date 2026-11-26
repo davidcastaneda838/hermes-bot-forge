@@ -40,6 +40,7 @@ import journal  # noqa: E402
 import manage  # noqa: E402
 import policy  # noqa: E402
 import portable  # noqa: E402
+import forkops  # noqa: E402,F401
 import survey  # noqa: E402
 import team  # noqa: E402
 import takeover  # noqa: E402

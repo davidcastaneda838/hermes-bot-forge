@@ -570,3 +570,26 @@ DELEGATE_OUTSIDE = {
         "required": ["task", "directory"],
     },
 }
+
+
+FORK_OPS = {
+    "name": "fork_ops",
+    "description": (
+        "Maintain the Bot Forge fork (davidcastaneda838/hermes-bot-forge, branch david-fork). "
+        "op=status: where the fork stands vs upstream (ahead/behind, dirty, latest upstream commit). "
+        "op=sync: fetch upstream and rebase the fork onto it; conflicts abort the rebase and are "
+        "reported for manual resolution. op=adopt: install the fork's current commit into the named "
+        "Bot profiles (catalog pins block plugins update, so adoption uses plugins install --ref). "
+        "After sync or adopt run the test suite and restart gateways; doctor confirms."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "op": {"type": "string", "enum": ["status", "sync", "adopt"]},
+            "profiles": {"type": "array", "items": {"type": "string"},
+                         "description": "adopt only: Bot profile names to update; empty adopts every profile"},
+        },
+        "required": ["op"],
+        "additionalProperties": False,
+    },
+}

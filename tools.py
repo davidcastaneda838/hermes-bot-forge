@@ -119,6 +119,25 @@ def _manage(op: str, args: dict, settings: dict | None = None) -> str:
         return json.dumps({"ok": False, "error": _clean(p.stderr or out)[-1500:]})
 
 
+def fork_ops(args: dict, **kwargs) -> str:
+    """Fork maintenance: status / sync / adopt. Runs forkops.py in a subprocess; git
+    targets the main checkout, adopt re-installs the fork commit into Bot profiles."""
+    spec = {"op": args.get("op"), "profiles": args.get("profiles") or [],
+            "hermes_root": str(hermes_root())}
+    try:
+        p = subprocess.run([sys.executable, str(PLUGIN_DIR / "forkops.py"), "-"],
+                           input=json.dumps(spec), capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=900,
+                           stdin=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        return json.dumps({"ok": False, "error": "fork_ops timed out after 15 min"})
+    out = p.stdout.strip()
+    try:
+        return json.dumps(json.loads(out[out.index("{"):]))
+    except ValueError:
+        return json.dumps({"ok": False, "error": _clean(p.stderr or out)[-1500:]})
+
+
 def create_team(args: dict, settings: dict | None = None, **kwargs) -> str:
     # Check every explicit route before building the lead or any member.
     specs = [args.get("lead")] + list(args.get("members") or [])
