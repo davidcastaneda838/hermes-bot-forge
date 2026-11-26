@@ -127,8 +127,7 @@ def fork_ops(args: dict, **kwargs) -> str:
     try:
         p = subprocess.run([sys.executable, str(PLUGIN_DIR / "forkops.py"), "-"],
                            input=json.dumps(spec), capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=900,
-                           stdin=subprocess.DEVNULL)
+                           encoding="utf-8", errors="replace", timeout=900)
     except subprocess.TimeoutExpired:
         return json.dumps({"ok": False, "error": "fork_ops timed out after 15 min"})
     out = p.stdout.strip()

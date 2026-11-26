@@ -4,7 +4,7 @@ import os
 import unittest
 from pathlib import Path
 
-from support import ROOT, forkops  # noqa: F401,E402  (support arranges sys.path)
+from support import ROOT, forkops, tools  # noqa: F401,E402  (support arranges sys.path)
 
 
 def live_root() -> Path | None:
@@ -76,6 +76,22 @@ class ProfileScan(unittest.TestCase):
             # a missing profile in an explicit list is refused, not half-adopted
             with self.assertRaises(LookupError):
                 forkops._wanted_profiles(Path(tmp), ["ghost"])
+
+
+class HandlerCallContract(unittest.TestCase):
+    """tools.fork_ops only wraps the subprocess. Regression: passing both input= and
+    stdin= to subprocess.run is a ValueError, which made the whole tool unusable
+    (battle-test hardening added stdin=DEVNULL next to input=)."""
+
+    def test_run_gets_input_without_stdin(self):
+        from unittest import mock
+        with mock.patch.object(tools, "hermes_root", return_value=Path("root")), \
+             mock.patch.object(tools.subprocess, "run") as run:
+            run.return_value = mock.Mock(stdout='{"ok": true}', stderr="", returncode=0)
+            tools.fork_ops({"op": "status"})
+        kwargs = run.call_args.kwargs
+        self.assertIn("input", kwargs)
+        self.assertNotIn("stdin", kwargs)
 
 
 if __name__ == "__main__":
