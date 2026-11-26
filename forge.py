@@ -42,6 +42,11 @@ if __package__:  # Hermes imports this as a package; the CLI entry points run it
 else:
     import policy as policy_mod
 
+if __package__:
+    from . import platforms
+else:
+    import platforms
+
 BASE_TOOLSETS = ["browser", "clarify", "file", "memory", "session_search", "skills", "todo", "web"]
 ALL_TOOLSETS = set(BASE_TOOLSETS) | {"code_execution", "computer_use", "connections", "cronjob", "delegation",
                                      "image_gen", "terminal", "tts", "vision"}
@@ -99,7 +104,7 @@ ASSISTANT_NAMING = re.compile(r"\b(call|calls|called|name|names|named)\b.{0,40}\
                               r"\bassistant\b.{0,40}\b(name|named|called)\b", re.I)
 def default_root() -> Path:
     """Hermes root when the caller didn't pass one (Windows keeps it under LOCALAPPDATA)."""
-    if os.name == "nt":
+    if platforms.is_windows():
         base = os.environ.get("LOCALAPPDATA") or str(Path.home())
         return Path(base) / "hermes"
     return Path.home() / ".hermes"
@@ -206,7 +211,7 @@ def provision_gateway(root: Path, profile_id: str, settings: dict) -> str:
     socket implementation. Missing/older control support means unverified, not permission to
     install a second inbound process. No host restart, migration, --force or automatic unpark.
     """
-    if not settings["install_gateway"] or os.name == "nt":
+    if not settings["install_gateway"] or platforms.is_windows():
         return "skipped"
     pdir = root / "profiles" / profile_id
     cfg = load_yaml(pdir / "config.yaml")
@@ -528,7 +533,7 @@ def screen_error(root: Path, want: bool) -> str:
     """
     if not want:
         return ""
-    if os.name == "nt" or sys.platform == "darwin":
+    if not platforms.is_linux_gateway_host():
         return ("Bot Screen needs a Linux gateway host — on macOS and Windows there is no separate "
                 "screen, so the Bot would act on your own display instead of its own. Create it "
                 "without bot_screen, or ask for the computer_use toolset explicitly if driving this "
@@ -1081,7 +1086,7 @@ def forge(s: dict) -> dict:
         if created:
             deleted = run(root, "profile", "delete", "-y", profile_id, check=False, timeout=300)
             rolled_back = deleted.returncode == 0
-            if sys.platform.startswith("linux"):
+            if platforms.is_linux():
                 subprocess.run(["systemctl", "--user", "reset-failed", f"hermes-gateway-{profile_id}.service"],
                                capture_output=True)
         result = {"ok": False, "name": profile_id, "error": str(e), "rolled_back": rolled_back}

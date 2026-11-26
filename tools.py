@@ -16,6 +16,11 @@ else:
     import forge
     import policy as policy_mod
 
+if __package__:
+    from . import platforms
+else:
+    import platforms
+
 PLUGIN_DIR = Path(__file__).resolve().parent
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 NOISE = ("hermes update", "Gateways may", "hermes gateway restart", "tirith security scanner")
@@ -27,7 +32,7 @@ def hermes_root() -> Path:
         from hermes_constants import get_default_hermes_root
         return Path(get_default_hermes_root())
     except Exception:
-        if os.name == "nt":
+        if platforms.is_windows():
             return Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "hermes"
         return Path.home() / ".hermes"
 

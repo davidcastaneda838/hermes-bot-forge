@@ -25,6 +25,11 @@ if __package__:  # Hermes imports this as a package; the CLI entry points run it
 else:
     import forge
 
+if __package__:
+    from . import platforms
+else:
+    import platforms
+
 STALE_DAYS = 7
 EXPENSIVE_RUNS_PER_DAY = 24
 
@@ -166,7 +171,7 @@ def check_bot(pdir: Path, gateways: dict, now: float, bundled: set | None = None
         # real ACL is, so reading them there produced "readable by other users — chmod 600" for
         # every Bot, with a command that does nothing on that platform. Report the reach, not a
         # permission verdict we cannot make (#87).
-        if os.name == "nt":
+        if platforms.is_windows():
             mode = None
         detail = f" (mode {mode:o})" if mode is not None else ""
         if mode is not None and mode & 0o077:

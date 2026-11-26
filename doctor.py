@@ -19,6 +19,11 @@ if __package__:  # Hermes imports this as a package; the CLI entry points run it
 else:
     import forge
 
+if __package__:
+    from . import platforms
+else:
+    import platforms
+
 PLUGIN_DIR = Path(__file__).resolve().parent
 OAUTH_PROVIDERS = {"openai-codex", "anthropic", "anthropic-oauth", "xai", "nous"}
 SANDBOX_BACKENDS = {
@@ -111,7 +116,7 @@ def _proc_start(pid: int) -> float | None:
     /proc called every gateway stale, and the only fix it offered (restart the gateway) could
     never clear it.
     """
-    if os.name == "nt":
+    if platforms.is_windows():
         # /proc does not exist on Windows - read the real start time via GetProcessTimes.
         # Same failure contract as the /proc path below: None means unknown, never 0.0.
         import ctypes
@@ -223,7 +228,7 @@ def check(root: Path | None = None, settings: dict | None = None) -> dict:
                            "detail": f"{model_id or 'unset'} ({provider or 'unset'})"
                                      + (" with a fallback" if has_fallback else "")})
 
-    if os.name == "nt":
+    if platforms.is_windows():
         checks.append({"check": "platform", "status": WARN,
                        "detail": "Windows is untested: gateway install, sandboxes and login sharing are skipped; "
                                  "Bots are still created and usable from the CLI"})
