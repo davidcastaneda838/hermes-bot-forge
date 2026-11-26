@@ -399,21 +399,68 @@ def delegate_outside(args: dict, settings: dict | None = None, **kwargs) -> str:
     return json.dumps(outside.delegate(spec))
 
 
+def _strip_noise(text: str) -> str:
+    """Ask-agent reply cleanup: ANSI color codes, NOISE lines, and CLI scaffolding
+    (worktree bookkeeping, session_id) that is never part of a Bot's answer."""
+    text = ANSI.sub("", text or "")
+    lines = []
+    for line in (text or "").splitlines():
+        s = line.strip()
+        if any(n in line for n in NOISE):
+            continue
+        if s.startswith(("✓ Worktree", "Worktree", "session_id:", "Branch: hermes/", "Base:  ", "Base: origin")):
+            continue
+        lines.append(line)
+    return "\n".join(lines).strip()
+
+
+TURN_LIMIT_MARKERS = ("iteration limit", "turn limit", "max-turns", "iteration budget")
+
+ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def _classify_ask(rc: int, stdout: str, stderr: str) -> dict:
+    """One place for deciding what a `chat -Q` child actually did (pure, unit-tested).
+
+    Returns {status, reply?, error?, exhausted?, error_type?}:
+    - status "ok": rc 0 and a reply exists
+    - status "turn_budget": rc != 0 and the output says the iteration/turn limit was hit —
+      not a crash; the partial reply is real and more turns (or a smaller task) fix it
+    - status "empty": rc 0 but no reply text survived cleaning
+    - status "failed": anything else — a real error; stderr's session_id line is dropped
+    """
+    reply = _strip_noise(stdout)
+    if rc == 0 and reply:
+        return {"status": "ok", "reply": reply}
+    if rc != 0 and any(m in stdout for m in TURN_LIMIT_MARKERS):
+        return {"status": "turn_budget", "exhausted": True, "partial_reply": reply,
+                "error": "the Bot hit its turn budget before finishing"}
+    if rc == 0:
+        return {"status": "empty", "error": "no reply text came back"}
+    err = "\n".join(line for line in (stderr or "").splitlines()
+                    if not line.strip().startswith("session_id:")).strip()
+    return {"status": "failed", "error": (err or reply or "unknown failure")[-1500:]}
+
+
 def ask_agent(args: dict, **kwargs) -> str:
     root = hermes_root()
     name = (args.get("name") or "").strip().lower()
     message = (args.get("message") or "").strip()
     if not NAME_RE.match(name) or not message:
         return json.dumps({"ok": False, "error": "need a valid profile name and a message"})
+    max_turns = args.get("max_turns")
+    if max_turns is not None and (not isinstance(max_turns, int) or not 1 <= max_turns <= 300):
+        return json.dumps({"ok": False, "error": "max_turns must be an integer 1..300"})
     if name != "default" and not (root / "profiles" / name / "config.yaml").exists():
         return json.dumps({"ok": False, "error": f"no Bot named '{name}' (see list_agents)"})
+    turns = max_turns if isinstance(max_turns, int) and max_turns >= 1 else 30
     # Never forward the caller's process environment to another Bot — it may hold the main profile's
     # whole .env. forge.safe_env is the one allowlist for running another Bot's turn.
     env = forge.safe_env(root)
     try:
         limit = forge.reading_only_args(args.get("reading_only"))
         wait = forge.within_deadline(900, root)
-        p = subprocess.run(["hermes", "-p", name, "chat", "-Q", "--max-turns", "30",
+        p = subprocess.run(["hermes", "-p", name, "chat", "-Q", "--max-turns", str(turns),
                             *limit, "-q", message],
                            capture_output=True, text=True, encoding="utf-8",
                            errors="replace", stdin=subprocess.DEVNULL, timeout=wait, env=env,
@@ -423,7 +470,14 @@ def ask_agent(args: dict, **kwargs) -> str:
                                                  + forge.deadline_hint(root)})
     except FileNotFoundError:
         return json.dumps({"ok": False, "error": "hermes CLI not found on PATH"})
-    reply = _clean(p.stdout)
-    if p.returncode != 0 or not reply:
-        return json.dumps({"ok": False, "error": _clean(p.stderr or p.stdout)[-1500:]})
-    return json.dumps({"ok": True, "name": name, "reply": reply[-6000:]})
+    verdict = _classify_ask(p.returncode, p.stdout or "", p.stderr or "")
+    if verdict["status"] == "ok":
+        return json.dumps({"ok": True, "name": name, "reply": verdict["reply"][-6000:]})
+    if verdict["status"] == "turn_budget":
+        return json.dumps({"ok": False, "name": name, "error_type": "turn_budget",
+                           "exhausted": True, "turns": turns,
+                           "partial_reply": (verdict.get("partial_reply") or "")[-3000:] or None,
+                           "error": (f"{name} hit its {turns}-turn budget before finishing. "
+                                     "The partial reply is real work, not garbage. Retry with "
+                                     "a higher max_turns, or split the task into smaller asks.")})
+    return json.dumps({"ok": False, "name": name, "error": verdict["error"]})

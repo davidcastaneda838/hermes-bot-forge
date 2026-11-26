@@ -143,6 +143,10 @@ ASK_AGENT = {
                 "onward, or touching connected services. It does NOT let it read local files: "
                 "Hermes' file toolset is read and write together, so file access is off entirely "
                 "here. Use it for look-it-up work.")},
+            "max_turns": {"type": "integer", "minimum": 1, "maximum": 300, "description": (
+                "Turn budget for this one ask (default 30; one turn = one model call). Raise it "
+                "for long multi-step tasks — when the budget runs out the result says so with "
+                "error_type 'turn_budget' plus the partial reply, instead of a generic error.")},
         },
         "required": ["name", "message"],
     },
