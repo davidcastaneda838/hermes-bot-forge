@@ -35,7 +35,11 @@ else:
             # habit: on Windows it dropped USERPROFILE and LOCALAPPDATA, Path.home() raised,
             # and the child died before importing anything (#87).
             env = dict(os.environ)
-            env["PYTHONPATH"] = str(ROOT.parent)
+            # Append, not replace: the parent dir must be on the path, but replacing would drop
+# the entry that carries PyYAML on this machine (the child imports the plugin, which
+# imports yaml) and the probe would die at import (#fork).
+            env["PYTHONPATH"] = os.pathsep.join(
+                p for p in (os.environ.get("PYTHONPATH"), str(ROOT.parent)) if p)
             env.pop("HERMES_HOME", None)
             proc = subprocess.run([sys.executable, "-B", "-c", code], cwd=tmp, env=env,
                                   capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
@@ -66,7 +70,11 @@ else:
             # child dies before importing anything (#87). What this proves is that the imports
             # do not need the repository on sys.path, which only needs PYTHONPATH.
             env = dict(os.environ)
-            env["PYTHONPATH"] = str(ROOT.parent)
+            # Append, not replace: the parent dir must be on the path, but replacing would drop
+# the entry that carries PyYAML on this machine (the child imports the plugin, which
+# imports yaml) and the probe would die at import (#fork).
+            env["PYTHONPATH"] = os.pathsep.join(
+                p for p in (os.environ.get("PYTHONPATH"), str(ROOT.parent)) if p)
             env.pop("HERMES_HOME", None)
             proc = subprocess.run([sys.executable, "-B", "-c", code], cwd=tmp, env=env,
                                   capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)

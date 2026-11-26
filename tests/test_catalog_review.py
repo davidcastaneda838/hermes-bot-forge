@@ -16,6 +16,13 @@ class RegisteredCallbacks(unittest.TestCase):
             env = {k: v for k, v in os.environ.items()
                    if not k.startswith(('HERMES_', 'EMAIL_', 'PYTHON'))}
             env.update(HOME=tmp, USERPROFILE=tmp, LOCALAPPDATA=tmp, PYTHONUTF8='1')
+            # Fork change: keep the path entry that provides PyYAML — the child imports
+            # the plugin, which imports yaml (see test_registration.run_probe).
+            try:
+                import yaml as _yaml
+                env.setdefault('PYTHONPATH', str(Path(_yaml.__file__).resolve().parent.parent))
+            except ModuleNotFoundError:
+                pass
             proc = subprocess.run([sys.executable, '-B', str(probe), str(ROOT), tmp],
                                   cwd=tmp, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
         self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
@@ -33,6 +40,13 @@ class NotificationSubcommands(unittest.TestCase):
             env = {k: v for k, v in os.environ.items()
                    if not k.startswith(('HERMES_', 'EMAIL_', 'PYTHON'))}
             env.update(HOME=tmp, USERPROFILE=tmp, LOCALAPPDATA=tmp, PYTHONUTF8='1')
+            # Fork change: keep the path entry that provides PyYAML — the child imports
+            # the plugin, which imports yaml (see test_registration.run_probe).
+            try:
+                import yaml as _yaml
+                env.setdefault('PYTHONPATH', str(Path(_yaml.__file__).resolve().parent.parent))
+            except ModuleNotFoundError:
+                pass
             for action in ('status', 'digest'):
                 with self.subTest(action=action):
                     proc = subprocess.run([sys.executable, '-B', str(ROOT / 'notify.py'), action],

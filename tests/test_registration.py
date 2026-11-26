@@ -23,6 +23,15 @@ def run_probe(repo: Path):
                if not k.startswith(("HERMES_", "EMAIL_", "PYTHON"))}
         env.update(HOME=str(home), USERPROFILE=str(home), LOCALAPPDATA=str(home),
                    PYTHONUTF8="1")
+        # Fork change: stripping PYTHON* also strips the only path that carries PyYAML
+        # on this machine (the interpreter sees it via PYTHONPATH). Re-add just the
+        # site-packages directory that provides yaml, so the probe subprocess can import.
+        try:
+            import yaml as _yaml
+            env.setdefault("PYTHONPATH",
+                           str(Path(_yaml.__file__).resolve().parent.parent))
+        except ModuleNotFoundError:
+            pass
         return subprocess.run([sys.executable, "-B", str(PROBE), str(repo), str(home)],
                               cwd=tmp, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
 

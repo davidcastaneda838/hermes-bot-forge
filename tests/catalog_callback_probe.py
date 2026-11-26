@@ -10,6 +10,10 @@ import sys
 import types
 from unittest import mock
 
+# Fork change: hermetic like tests/support.py — stub the Hermes secret resolver so
+# notify falls back to this probe's synthetic .env instead of the real install.
+sys.modules["agent.secret_scope"] = types.ModuleType("agent.secret_scope")
+
 repo, root = map(Path, sys.argv[1:])
 root = root / 'synthetic-hermes'
 root.mkdir()
