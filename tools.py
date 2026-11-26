@@ -137,6 +137,28 @@ def fork_ops(args: dict, **kwargs) -> str:
         return json.dumps({"ok": False, "error": _clean(p.stderr or out)[-1500:]})
 
 
+def rename_agent(args: dict, **kwargs) -> str:
+    """Rename a Bot: `hermes profile rename` owns the profile dir and state DB; this
+    sweeps the fork-owned references (team rosters, SOUL.md identity, .botforge.json
+    templates) afterwards. Runs rename.py in a subprocess with a stripped environment."""
+    spec = {"old_name": args.get("old_name"), "new_name": args.get("new_name"),
+            "confirm": args.get("confirm"), "hermes_root": str(hermes_root())}
+    env = {key: os.environ[key] for key in _WAITING_ENV_KEYS if os.environ.get(key)}
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    try:
+        p = subprocess.run([sys.executable, str(PLUGIN_DIR / "rename.py"), "-"],
+                           input=json.dumps(spec), capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=600,
+                           env=env, cwd=str(PLUGIN_DIR))
+    except subprocess.TimeoutExpired:
+        return json.dumps({"ok": False, "error": "rename_agent timed out after 10 min"})
+    out = p.stdout.strip()
+    try:
+        return json.dumps(json.loads(out[out.index("{"):]))
+    except ValueError:
+        return json.dumps({"ok": False, "error": _clean(p.stderr or out)[-1500:]})
+
+
 _WAITING_ENV_KEYS = ("PATH", "PATHEXT", "SYSTEMROOT", "SYSTEMDRIVE", "LOCALAPPDATA",
                      "APPDATA", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "TEMP", "TMP",
                      # the gateway may resolve site-packages (PyYAML) via PYTHONPATH;

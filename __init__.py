@@ -27,6 +27,9 @@ def register(ctx):
     ctx.register_tool(name="fork_ops", toolset="bot_forge", schema=schemas.FORK_OPS,
                       handler=tools.fork_ops, emoji="🪴",
                       description="Fork maintenance: status, sync (rebase onto upstream), adopt (install into Bot profiles)")
+    ctx.register_tool(name="rename_agent", toolset="bot_forge", schema=schemas.RENAME_AGENT,
+                      handler=tools.rename_agent, emoji="✏️",
+                      description="Rename a Bot end to end: profile rename plus fork-owned reference sweep")
     ctx.register_tool(name="waiting_on", toolset="bot_forge", schema=schemas.WAITING_ON,
                       handler=tools.waiting_on, emoji="⏳",
                       description="Report which Bots are blocked/waiting on the user (read-only, from journals)")

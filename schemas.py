@@ -370,6 +370,27 @@ DELETE_AGENT = {
 }
 
 
+RENAME_AGENT = {
+    "name": "rename_agent",
+    "description": (
+        "Rename an existing Bot: runs `hermes profile rename` (profile dir AND state-DB identity "
+        "migrate together) and then sweeps the fork-owned references Hermes does not know about — "
+        "team-roster bullets in other Bots' memories, the Bot's own SOUL.md identity lines, and "
+        "shared .botforge.json templates under profile-exports. Needs `confirm` to equal the Bot's "
+        "current profile name, exactly like delete_agent. Never renames default, scout or vertex."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "old_name": {"type": "string", "description": "the Bot's current profile name"},
+            "new_name": {"type": "string", "description": "the new profile name (a valid profile slug, must not exist)"},
+            "confirm": {"type": "string", "description": "must equal old_name exactly"},
+        },
+        "required": ["old_name", "new_name", "confirm"],
+    },
+}
+
+
 CREATE_TEAM = {
     "name": "create_team",
     "description": (
