@@ -21,3 +21,8 @@ videos/**/CLAUDE.md
 .coverage
 .coverage.*
 htmlcov/
+
+# Bot Forge fork: Hermes working files + worktrees (never commit)
+.hermes/
+.hermes-catalog.json
+.worktrees/
