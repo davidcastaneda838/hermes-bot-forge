@@ -9,7 +9,6 @@ Spec: {"op": "update"|"copy"|"hide"|"show"|"export"|"import"|"delete", "hermes_r
 Every op prints one JSON result. Nothing here creates a Bot — that is forge.py.
 """
 import json
-import os
 import re
 import shutil
 import sys
