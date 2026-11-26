@@ -24,6 +24,9 @@ def register(ctx):
                       description="Check that Bot Forge itself is set up correctly (read-only)")
     ctx.register_tool(name="check_agents", toolset="bot_forge", schema=schemas.CHECK_AGENTS,
                       handler=tools.check_agents, emoji="🩺", description="Health check for all Bots (read-only)")
+    ctx.register_tool(name="contract_check", toolset="bot_forge", schema=schemas.CONTRACT_CHECK,
+                      handler=tools.contract_check, emoji="📡",
+                      description="Baseline-diff sentinel for unversioned Hermes contracts (read-only)")
     ctx.register_tool(name="fork_ops", toolset="bot_forge", schema=schemas.FORK_OPS,
                       handler=tools.fork_ops, emoji="🪴",
                       description="Fork maintenance: status, sync (rebase onto upstream), adopt (install into Bot profiles)")

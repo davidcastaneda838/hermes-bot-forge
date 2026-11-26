@@ -35,6 +35,7 @@ import yaml  # noqa: E402
 # importable; the fallback existed only so a class could be skipped, which meant a plugin that
 # had stopped importing at all — v0.15.0, v0.15.3 — silently skipped 22 tests and left CI green.
 # A failure to import any of these is the thing the suite most needs to shout about.
+import contract_check  # noqa: E402,F401
 import health  # noqa: E402
 import journal  # noqa: E402
 import manage  # noqa: E402

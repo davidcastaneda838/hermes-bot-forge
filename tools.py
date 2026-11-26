@@ -137,6 +137,26 @@ def fork_ops(args: dict, **kwargs) -> str:
         return json.dumps({"ok": False, "error": _clean(p.stderr or out)[-1500:]})
 
 
+def contract_check(args: dict, **kwargs) -> str:
+    """Baseline-diff sentinel for unversioned Hermes contracts. Runs contract_check.py in a
+    subprocess; strictly read-only except its own baseline store under .bot-forge/."""
+    spec = {"op": args.get("op"), "hermes_root": str(hermes_root())}
+    env = {key: os.environ[key] for key in _WAITING_ENV_KEYS if os.environ.get(key)}
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    try:
+        p = subprocess.run([sys.executable, str(PLUGIN_DIR / "contract_check.py"), "-"],
+                           input=json.dumps(spec), capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=120,
+                           env=env, cwd=str(PLUGIN_DIR))
+    except subprocess.TimeoutExpired:
+        return json.dumps({"ok": False, "error": "contract_check timed out after 2 min"})
+    out = p.stdout.strip()
+    try:
+        return json.dumps(json.loads(out[out.index("{"):]))
+    except ValueError:
+        return json.dumps({"ok": False, "error": _clean(p.stderr or out)[-1500:]})
+
+
 def rename_agent(args: dict, **kwargs) -> str:
     """Rename a Bot: `hermes profile rename` owns the profile dir and state DB; this
     sweeps the fork-owned references (team rosters, SOUL.md identity, .botforge.json

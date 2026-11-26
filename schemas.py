@@ -612,6 +612,29 @@ WAITING_ON = {
 }
 
 
+CONTRACT_CHECK = {
+    "name": "contract_check",
+    "description": (
+        "Baseline-diff sentinel for the unversioned Hermes contracts the fork depends on: "
+        "profile.yaml ui_meta['hermes-bots'] keys, state.db sessions columns, cron/jobs.json "
+        "layout, .env EMAIL_* key names, config.yaml platform_toolsets.cli. op=baseline "
+        "records the known-good shapes into .bot-forge/contract_baseline.json (shapes, never "
+        "values — one-time setup, and again only after a confirmed Hermes update). op=check "
+        "diffs the live shapes against it: one entry per contract; gate on the top-level "
+        "'drift' bool and 'changed' contract list, not on 'ok' (execution success only). "
+        "A drift without a Hermes update is a bug until proven otherwise. Read-only."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "op": {"type": "string", "enum": ["baseline", "check"]},
+        },
+        "required": ["op"],
+        "additionalProperties": False,
+    },
+}
+
+
 FORK_OPS = {
     "name": "fork_ops",
     "description": (
