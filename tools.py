@@ -138,7 +138,10 @@ def fork_ops(args: dict, **kwargs) -> str:
 
 
 _WAITING_ENV_KEYS = ("PATH", "PATHEXT", "SYSTEMROOT", "SYSTEMDRIVE", "LOCALAPPDATA",
-                     "APPDATA", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "TEMP", "TMP")
+                     "APPDATA", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "TEMP", "TMP",
+                     # the gateway may resolve site-packages (PyYAML) via PYTHONPATH;
+                     # stripping it makes `import forge` fail with ModuleNotFoundError
+                     "PYTHONPATH")
 
 
 def waiting_on(args: dict, **kwargs) -> str:
