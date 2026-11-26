@@ -61,5 +61,22 @@ class StatusAgainstRealCheckout(unittest.TestCase):
         self.assertIn("/", out["fork"])  # owner/repo
 
 
+class ProfileScan(unittest.TestCase):
+    def test_invalid_profile_dirs_are_skipped_not_adopted(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            pdir = Path(tmp) / "profiles"
+            pdir.mkdir()
+            (pdir / "magroot").mkdir()
+            (pdir / ".deleted").mkdir()
+            (pdir / "Not Valid!").mkdir()
+            have, skipped = forkops._wanted_profiles(Path(tmp), [])
+            self.assertEqual(have, ["magroot"])
+            self.assertEqual(skipped, [".deleted", "Not Valid!"])
+            # a missing profile in an explicit list is refused, not half-adopted
+            with self.assertRaises(LookupError):
+                forkops._wanted_profiles(Path(tmp), ["ghost"])
+
+
 if __name__ == "__main__":
     unittest.main()

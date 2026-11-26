@@ -95,15 +95,25 @@ def op_sync(s: dict, repo: Path, settings: dict) -> dict:
             "before": before}
 
 
-def _wanted_profiles(root: Path, wanted: list[str]) -> "list[str] | dict":
+def _wanted_profiles(root: Path, wanted: list[str]) -> "tuple[list[str], list[str]]":
+    """(profiles to adopt, skipped) — a directory in profiles/ is only a profile when its
+    name is; leftovers (e.g. '.deleted' tombstones) are skipped, not adopted."""
+    import re
     profiles_dir = Path(root) / "profiles"
-    have = sorted(d.name for d in profiles_dir.iterdir() if d.is_dir()) if profiles_dir.is_dir() else []
+    valid = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+    if not profiles_dir.is_dir():
+        return [], []
+    have, skipped = [], []
+    for d in sorted(profiles_dir.iterdir()):
+        if not d.is_dir():
+            continue
+        (have if valid.match(d.name) else skipped).append(d.name)
     if wanted:
         missing = [w for w in wanted if w not in have]
         if missing:
-            return {"ok": False, "op": "adopt", "error": f"no such profile(s): {', '.join(missing)}"}
-        return wanted
-    return have
+            raise LookupError(f"no such profile(s): {', '.join(missing)}")
+        return wanted, []
+    return have, skipped
 
 
 def op_adopt(s: dict, repo: Path, settings: dict) -> dict:
@@ -113,10 +123,11 @@ def op_adopt(s: dict, repo: Path, settings: dict) -> dict:
     fork = _owner_repo(repo)
     if not fork:
         return {"ok": False, "op": "adopt", "error": "origin remote has no usable GitHub URL"}
-    wanted = _wanted_profiles(Path(s.get("hermes_root") or Path.home() / ".hermes"),
-                              [p.strip().lower() for p in (s.get("profiles") or [])])
-    if isinstance(wanted, dict):
-        return wanted
+    try:
+        wanted, skipped = _wanted_profiles(Path(s.get("hermes_root") or Path.home() / ".hermes"),
+                                           [p.strip().lower() for p in (s.get("profiles") or [])])
+    except LookupError as exc:
+        return {"ok": False, "op": "adopt", "error": str(exc)}
     results = []
     for name in wanted:
         p = subprocess.run(
@@ -128,7 +139,7 @@ def op_adopt(s: dict, repo: Path, settings: dict) -> dict:
         results.append({"profile": name, "returncode": p.returncode,
                         "detail": " | ".join(tail[-2:]) if tail else (p.stderr or "")[-300:]})
     return {"ok": all(r["returncode"] == 0 for r in results), "op": "adopt",
-            "ref": sha[:12], "fork": fork, "profiles": results,
+            "ref": sha[:12], "fork": fork, "profiles": results, "skipped": skipped,
             "next": "restart gateways, then doctor: gateway and version should go green"}
 
 
