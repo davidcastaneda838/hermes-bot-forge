@@ -52,14 +52,14 @@ def _status(repo: Path) -> dict:
     branch_rc, branch, _ = _git(repo, "rev-parse", "--abbrev-ref", "HEAD")
     rc_a, ahead, _ = _git(repo, "rev-list", "--count", f"{UPSTREAM_REF}..HEAD")
     rc_b, behind, _ = _git(repo, "rev-list", "--count", f"HEAD..{UPSTREAM_REF}")
-    rc_u, upstream_head, _ = _git(repo, "rev-parse", UPSTREAM_REF)
+    rc_u, upstream_head, _ = _git(repo, "rev-parse", "--verify", UPSTREAM_REF)
     rc_d, dirty, _ = _git(repo, "status", "--porcelain")
     rc_l, last_log, _ = _git(repo, "log", "-1", "--format=%s", UPSTREAM_REF) if rc_u == 0 else (1, "", "")
     return {"ok": True, "op": "status",
             "branch": branch if branch_rc == 0 else "?",
             "head": head[:12],
             "upstream_available": rc_u == 0,
-            "upstream_head": (upstream_head or "")[:12],
+            "upstream_head": (upstream_head or "")[:12] if rc_u == 0 else None,
             "upstream_latest": last_log or None,
             "ahead": int(ahead) if rc_a == 0 else None,
             "behind": int(behind) if rc_b == 0 else None,
@@ -78,6 +78,12 @@ def op_sync(s: dict, repo: Path, settings: dict) -> dict:
         return {"ok": False, "op": "sync", "error": f"git fetch {REMOTE} {BRANCH} failed: {err}"}
     rc, out, err = _git(repo, "rebase", UPSTREAM_REF, timeout=600)
     if rc != 0:
+        if "uncommitted changes" in (out + err) or "cannot rebase" in (out + err):
+            return {"ok": False, "op": "sync", "rebased": False, "aborted": False,
+                    "conflicts": [], "error": err or out,
+                    "hint": "The checkout has uncommitted changes. Commit them or stash "
+                            "before syncing (never sync a dirty checkout).",
+                    "before": before}
         rc_c, conflicts, _ = _git(repo, "diff", "--name-only", "--diff-filter", "U")
         conflicted = [line for line in conflicts.splitlines() if line.strip()]
         _git(repo, "rebase", "--abort")  # leave the checkout as it was; conflicts need a human
@@ -161,8 +167,11 @@ def fork(s: dict) -> dict:
 
 
 def main():
-    raw = sys.stdin.read() if len(sys.argv) < 2 or sys.argv[1] == "-" else Path(sys.argv[1]).read_text(encoding="utf-8")
-    result = fork(json.loads(raw))
+    try:
+        raw = sys.stdin.read() if len(sys.argv) < 2 or sys.argv[1] == "-" else Path(sys.argv[1]).read_text(encoding="utf-8")
+        result = fork(json.loads(raw))
+    except json.JSONDecodeError as exc:
+        result = {"ok": False, "error": f"input is not valid JSON: {exc}"}
     print(json.dumps(result, indent=2))
     sys.exit(0 if result.get("ok") else 1)
 
