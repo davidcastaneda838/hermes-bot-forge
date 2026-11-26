@@ -166,7 +166,8 @@ def safe_env(root: Path) -> dict:
 
 def run(root, *args, timeout=180, check=True, env=None):
     p = subprocess.run(["hermes", *args], capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL,
-                       timeout=timeout, env=env if env is not None else cli_env(root))
+                       timeout=timeout, env=env if env is not None else cli_env(root),
+                       cwd=str(Path(__file__).resolve().parent))
     if check and p.returncode != 0:
         raise RuntimeError(f"hermes {' '.join(args)} failed ({p.returncode}): {clean(p.stderr or p.stdout)[-800:]}")
     return p
