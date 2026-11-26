@@ -423,8 +423,32 @@ class ProcessStartTime(unittest.TestCase):
                 raise OSError("no /proc")
             return real(self, *a, **k)
 
+        # Fork change: Windows has a third source, GetProcessTimes. The unknown contract is
+        # tested against it by making the API call fail — unknown must still be None, never 0.0.
+        import ctypes
+
+        class _WinFn:
+            """A ctypes function stub: settable argtypes/restype, fixed falsy return."""
+
+            def __init__(self, ret):
+                self.argtypes = None
+                self.restype = None
+                self._ret = ret
+
+            def __call__(self, *a, **k):
+                return self._ret
+
+        class _FailKernel:
+            OpenProcess = _WinFn(0)        # handle request fails -> unknown
+            GetProcessTimes = _WinFn(0)
+            CloseHandle = _WinFn(None)
+
+        class _FailWindll:
+            kernel32 = _FailKernel
+
         with mock.patch.object(Path, "stat", no_proc), \
-             mock.patch.object(doctor.subprocess, "run", side_effect=OSError("no ps")):
+             mock.patch.object(doctor.subprocess, "run", side_effect=OSError("no ps")), \
+             mock.patch.object(ctypes, "windll", _FailWindll):
             self.assertIsNone(doctor._proc_start(os.getpid()))
 
 
