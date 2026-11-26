@@ -84,11 +84,6 @@ class ModelToolBoundary(unittest.TestCase):
             self.assertNotIn("model", spec["members"][1])
 
 
-@unittest.skipIf(os.name == "nt",
-                 "Bot Forge skips gateway setup on Windows by design (forge.py: "
-                 "`if not settings['install_gateway'] or os.name == 'nt': return 'skipped'`), so "
-                 "these assert an outcome that cannot occur there. Skipped rather than loosened, "
-                 "so they keep their teeth on Linux and macOS (#87).")
 class GatewayTopology(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -198,7 +193,8 @@ class GatewayTopology(unittest.TestCase):
         valid = self.record(self.root, ["default", "quill"])
         bad = [None, [], {}, {**valid, "protocol": True}, {**valid, "protocol": 99}, {**valid, "kind": "hermes-serve"},
                {**valid, "pid": True}, {**valid, "pid": 0}, {**valid, "hermes_home": "/other-root"},
-               {**valid, "served_profiles": "quill"}, {**valid, "served_profiles": [1]}]
+               {**valid, "served_profiles": "quill"}, {**valid, "served_profiles": [1]},
+               {**valid, "served_profiles": [{}]}, {**valid, "served_profiles": [{"home": 5}]}],
         for value in bad:
             with self.subTest(value=value):
                 self.records[str(self.root)] = value
@@ -282,13 +278,30 @@ class GatewayTopology(unittest.TestCase):
         self.control.identify_gateway.assert_not_called()
         self.assert_no_service_changes()
 
-    def test_windows_keeps_existing_skip(self):
+    def test_windows_routes_the_same_topology_not_the_skip(self):
+        self.records[str(self.root)] = self.record(self.root, ["default", "quill"])
         with patch.object(forge.os, "name", "nt"):
-            self.assertEqual(self.provision(), "skipped")
-        self.control.identify_gateway.assert_not_called()
+            self.assertEqual(self.provision(), "served by host gateway")
+        self.control.identify_gateway.assert_called()
         self.assert_no_service_changes()
 
-    @unittest.skipUnless(hasattr(os, "symlink"), "symlinks unavailable")
+    def test_current_dict_shaped_served_profiles_prove_serving(self):
+        """The current control protocol stamps {"profile_id": ..., "home": ...} dicts."""
+        self.records[str(self.root)] = self.record(
+            self.root, [{"profile_id": "default", "home": str(self.root)},
+                        {"profile_id": "quill", "home": str(self.profile)}])
+        self.assertEqual(self.provision(), "served by host gateway")
+        self.assert_no_service_changes()
+
+    def test_dict_shaped_served_profiles_match_by_home_path(self):
+        entry = {"profile_id": str(self.profile), "home": str(self.profile)}
+        self.records[str(self.root)] = self.record(self.root, [entry])
+        self.assertEqual(self.provision(), "served by host gateway")
+        self.assert_no_service_changes()
+
+    @unittest.skipIf(os.name == "nt",
+                     "creating a directory symlink needs the Windows symlink privilege; "
+                     "the probe itself is platform-independent and runs on POSIX (#87)")
     def test_profile_symlink_outside_root_is_not_probed(self):
         outside = Path(self.tmp.name) / "outside"
         outside.mkdir()
@@ -390,10 +403,6 @@ class ForgeModelIntegration(unittest.TestCase):
         self.assertIn("sign-in", out["warning"])
         self.assertNotIn("already introduced", out["note"])
 
-    @unittest.skipIf(os.name == "nt",
-                     "asserts a `pending:` gateway outcome; on Windows forge returns 'skipped' "
-                     "before any topology is read (forge.py:208), so there is no topology to "
-                     "be unknown about (#87)")
     def test_unknown_gateway_topology_never_requests_a_per_profile_service(self):
         self.settings["install_gateway"] = True
         with patch.dict(sys.modules, {"gateway": None, "gateway.control_socket": None}):

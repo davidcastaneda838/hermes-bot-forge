@@ -204,6 +204,41 @@ def dump_yaml(path: Path, data: dict):
     tmp.replace(path)
 
 
+def served_profile_ids(record: dict) -> set | None:
+    """Profile ids an identify record claims to serve - across control-protocol eras.
+
+    Hermes stamped plain profile names (a list of strings) into ``served_profiles``; the
+    current multiplexing runtime stamps ``{"profile_id": id-or-home, "home": path}`` dicts
+    (gateway/session_authorities.py::served_profiles). A shape this fork does not understand
+    returns None: the record is unverifiable, not an invitation to install anything.
+    """
+    served = record.get("served_profiles")
+    if not isinstance(served, list):
+        return None
+    ids: set = set()
+    for entry in served:
+        if isinstance(entry, str):
+            if entry:
+                ids.add(os.path.normcase(entry))
+            continue
+        if not isinstance(entry, dict):
+            return None
+        named = False
+        for key in ("profile_id", "home"):
+            value = entry.get(key)
+            if isinstance(value, str) and value:
+                ids.add(os.path.normcase(value))
+                named = True
+        if not named:
+            return None
+    return ids
+
+
+def _claims_serving(pdir: Path, profile_id: str, ids: set) -> bool:
+    """A host serves this profile by bare id or by the profile home it stamps."""
+    return profile_id in ids or os.path.normcase(str(pdir)) in ids
+
+
 def provision_gateway(root: Path, profile_id: str, settings: dict) -> str:
     """Best-effort gateway readiness; never infer a live multiplexer from a config or PID file.
 
@@ -211,7 +246,7 @@ def provision_gateway(root: Path, profile_id: str, settings: dict) -> str:
     socket implementation. Missing/older control support means unverified, not permission to
     install a second inbound process. No host restart, migration, --force or automatic unpark.
     """
-    if not settings["install_gateway"] or platforms.is_windows():
+    if not settings["install_gateway"]:
         return "skipped"
     pdir = root / "profiles" / profile_id
     cfg = load_yaml(pdir / "config.yaml")
@@ -240,8 +275,7 @@ def provision_gateway(root: Path, profile_id: str, settings: dict) -> str:
                     or not isinstance(record.get("hermes_home"), str)
                     or Path(record["hermes_home"]).resolve() != home.resolve()):
                 return None
-            served = record.get("served_profiles")
-            if not isinstance(served, list) or not all(isinstance(n, str) for n in served):
+            if served_profile_ids(record) is None:
                 return None
             return record
         except Exception:
@@ -255,7 +289,8 @@ def provision_gateway(root: Path, profile_id: str, settings: dict) -> str:
         record = live_identity(home)
         if record is None:
             continue
-        if profile_id in record["served_profiles"]:
+        served = served_profile_ids(record) or set()
+        if _claims_serving(pdir, profile_id, served):
             if standalone:
                 if home == pdir:
                     return "started"
@@ -281,7 +316,8 @@ def provision_gateway(root: Path, profile_id: str, settings: dict) -> str:
         except Exception:
             pass
         record = live_identity(host)
-        if record is not None and profile_id in record["served_profiles"]:
+        if record is not None and _claims_serving(
+                pdir, profile_id, served_profile_ids(record) or set()):
             return "served by host gateway"
         return "pending: host has not confirmed serving this profile; check hermes gateway status"
     return ("pending: no live host gateway could be verified; check hermes gateway status. "

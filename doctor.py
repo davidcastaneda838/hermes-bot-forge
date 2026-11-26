@@ -230,8 +230,7 @@ def check(root: Path | None = None, settings: dict | None = None) -> dict:
 
     if platforms.is_windows():
         checks.append({"check": "platform", "status": WARN,
-                       "detail": "Windows is untested: gateway install, sandboxes and login sharing are skipped; "
-                                 "Bots are still created and usable from the CLI"})
+                       "detail": "Windows: gateway setup runs through the native CLI path (a Windows backend reports serving via the control socket; an older CLI reports pending) - POSIX permission checks and sandboxes are skipped"})
 
     boxes = sandbox_backends()
     usable = [n for n, b in boxes.items() if b["usable"]]

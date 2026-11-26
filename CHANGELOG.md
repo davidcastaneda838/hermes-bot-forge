@@ -3,6 +3,10 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Gateway install/management works on Windows.** The `os.name == 'nt'` skips in `provision_gateway` and the copy/import flows are gone: Windows is a first-class gateway host now (Hermes' CLI has a full Scheduled-Task backend, per-profile tasks included). The wall was not the service mechanism but the control-protocol contract: the fork verified `served_profiles` as a list of plain names, while the current multiplexing runtime stamps `{"profile_id": id-or-home, "home": path}` dicts, so every verification would have reported *pending* even with the host serving. `served_profile_ids` now accepts both eras, matches a profile by bare id or stamped home path, and treats a shape it does not recognize as unverified (pending), never as license to install. The Windows-gated tests run everywhere again; `doctor` reports the native path instead of a blanket *untested* warning.
 ## [0.27.0] - 2026-11-12
 
 ### Fixed

@@ -297,7 +297,7 @@ def op_copy(s: dict, root: Path, settings: dict) -> dict:
                 import journal
 
             journal.enable_journal(pdir)
-        if settings.get("install_gateway", True) and not platforms.is_windows():
+        if settings.get("install_gateway", True):
             forge.run(root, "-p", new_id, "gateway", "install", "--start-now", "--start-on-login", check=False, timeout=120)
         return {"ok": True, "name": new_id, "display_name": display, "copied_from": src.name,
                 "note": "a fresh copy — no chat history, no routines"}
@@ -469,7 +469,7 @@ def op_import(s: dict, root: Path, settings: dict) -> dict:
         return {"ok": False, "error": "import did not produce a usable profile"}
     if s.get("display_name"):
         _save_bot_meta(pdir, {"title": display})
-    if settings.get("install_gateway", True) and not platforms.is_windows():
+    if settings.get("install_gateway", True):
         forge.run(root, "-p", new_id, "gateway", "install", "--start-now", "--start-on-login", check=False, timeout=120)
     return {"ok": True, "name": new_id, "display_name": _bot_meta(pdir).get("title") or display, "mode": "backup",
             "note": "restored from a full backup, including its chat history"}
