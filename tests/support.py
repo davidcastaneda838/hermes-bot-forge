@@ -53,7 +53,8 @@ def symlink_or_skip(src: Path, dst: Path):
     try:
         os.symlink(str(src), str(dst))
     except OSError as exc:
-        raise unittest.SkipTest(f"symlink privilege unavailable on this host: {exc}")
+        raise unittest.SkipTest(
+            f"symlink privilege unavailable on this host: {exc}") from exc
 
 
 def make_root(tmp: Path, profiles=(), titles=None, root_display=None):
