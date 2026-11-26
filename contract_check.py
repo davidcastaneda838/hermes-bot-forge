@@ -195,7 +195,7 @@ def op_baseline(s: dict, root: Path) -> dict:
     store.parent.mkdir(parents=True, exist_ok=True)
     import datetime
     record = {"captured_at": datetime.datetime.now().isoformat(timespec="seconds"),
-              "hermes_version": _hermes_version(), "contracts": shapes}
+              "hermes_version": _hermes_version(), "contracts": shapes, "notes": notes}
     store.write_text(json.dumps(record, indent=2), encoding="utf-8")
     return {"ok": True, "op": "baseline", "path": str(store),
             "contracts": record["contracts"],
@@ -223,7 +223,15 @@ def op_check(s: dict, root: Path) -> dict:
             detail = json.dumps(diff)
         results.append({"contract": name, "status": "PASS" if want == got else "CHANGED",
                         "detail": detail})
-    results.extend({"contract": "probe", "status": "CHANGED", "detail": n} for n in notes)
+    # Symmetric with the contract diff: a note that was in the baseline and is still
+    # there is a STABLE state (e.g. email never configured), not drift. Only notes that
+    # are new or disappeared since the baseline are loud.
+    base_notes = set(baseline.get("notes") or [])
+    live_notes = set(notes)
+    for note in sorted(live_notes - base_notes):
+        results.append({"contract": "probe", "status": "CHANGED", "detail": f"+ {note}"})
+    for note in sorted(base_notes - live_notes):
+        results.append({"contract": "probe", "status": "CHANGED", "detail": f"- {note}"})
     changed = [r["contract"] for r in results if r["status"] == "CHANGED"]
     return {"ok": True, "op": "check",
             "captured_at": baseline.get("captured_at"),

@@ -204,6 +204,67 @@ class RootIsNotAProfile(unittest.TestCase):
         self.assertIn("stale", check["contracts"][0]["detail"])
 
 
+class NoteSetDiffing(unittest.TestCase):
+    """Regression round 2 (live): on the real root email is not configured — all 5 keys
+    absent. That error note is identical to baseline on every check, so probe CHANGED
+    regenerated forever (drift: true, false alarm). The note set itself is diffed: only
+    new or disappeared notes are loud."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = make_contract_root(Path(self._tmp.name))
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_stable_error_state_is_not_drift(self):
+        # The real-root case: no .env at all — baseline records the same error state.
+        (self.root / ".env").unlink()
+        run(self.root, "baseline")
+        check = run(self.root, "check")
+        self.assertTrue(check["ok"])
+        self.assertFalse(check["drift"])
+        self.assertEqual(check["changed"], [])
+        self.assertEqual(set(statuses(check).values()), {"PASS"})
+
+    def test_keys_missing_that_baseline_had_present_are_loud(self):
+        run(self.root, "baseline")  # .env intact at baseline
+        (self.root / ".env").unlink()  # now the whole file is gone
+        check = run(self.root, "check")
+        self.assertTrue(check["drift"])
+        self.assertIn("env_keys", check["changed"])
+        self.assertIn("env_keys", " ".join(e["detail"] for e in check["contracts"]))
+
+    def test_new_probe_note_is_loud_with_plus_detail(self):
+        run(self.root, "baseline")
+        (self.root / "profiles" / "sample" / "config.yaml").write_text(
+            "toolsets: [unclosed", encoding="utf-8")  # now unreadable
+        check = run(self.root, "check")
+        self.assertTrue(check["drift"])
+        probe_entries = [e for e in check["contracts"] if e["contract"] == "probe"]
+        self.assertTrue(probe_entries)
+        self.assertTrue(all(e["detail"].startswith("+ ") for e in probe_entries))
+        self.assertIn("platform_toolsets_cli @ sample", probe_entries[0]["detail"])
+
+    def test_disappeared_note_is_loud_with_minus_detail(self):
+        (self.root / ".env").unlink()
+        run(self.root, "baseline")  # baseline carries the missing-env note
+        (self.root / ".env").write_text(
+            "EMAIL_ADDRESS=a@b.c\nEMAIL_PASSWORD=pw\nEMAIL_SMTP_HOST=smtp\n"
+            "EMAIL_SMTP_PORT=587\nEMAIL_HOME_ADDRESS=h@b.c\n", encoding="utf-8")
+        check = run(self.root, "check")
+        self.assertTrue(check["drift"])
+        self.assertTrue(any(e["contract"] == "probe" and e["detail"].startswith("- ")
+                            and "env_keys" in e["detail"] for e in check["contracts"]))
+
+    def test_baseline_records_the_note_set(self):
+        (self.root / ".env").unlink()
+        run(self.root, "baseline")
+        record = json.loads((self.root / ".bot-forge" / "contract_baseline.json").read_text())
+        self.assertEqual(len(record["notes"]), 1)
+        self.assertIn("env_keys @ .hermes", record["notes"][0])
+
+
 class GuardRails(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
