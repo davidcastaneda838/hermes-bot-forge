@@ -392,7 +392,8 @@ def ask_agent(args: dict, **kwargs) -> str:
         p = subprocess.run(["hermes", "-p", name, "chat", "-Q", "--max-turns", "30",
                             *limit, "-q", message],
                            capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", stdin=subprocess.DEVNULL, timeout=wait, env=env)
+                           errors="replace", stdin=subprocess.DEVNULL, timeout=wait, env=env,
+                           cwd=str(PLUGIN_DIR))
     except subprocess.TimeoutExpired:
         return json.dumps({"ok": False, "error": f"{name} did not answer within {wait}s. "
                                                  + forge.deadline_hint(root)})
