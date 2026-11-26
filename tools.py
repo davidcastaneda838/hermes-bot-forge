@@ -495,19 +495,28 @@ def _classify_ask(rc: int, stdout: str, stderr: str) -> dict:
     - status "turn_budget": rc != 0 and the output says the iteration/turn limit was hit —
       not a crash; the partial reply is real and more turns (or a smaller task) fix it
     - status "empty": rc 0 but no reply text survived cleaning
-    - status "failed": anything else — a real error; stderr's session_id line is dropped
+    - status "failed": anything else — a real error; the session_id (if stderr had
+      one) is captured for `--resume` even though its line stays out of the error text
     """
     reply = _strip_noise(stdout)
+    # Capture the session_id from stderr BEFORE it is stripped, so a turn-budget
+    # exhaustion (or any failure with a live session) can be resumed later.
+    m = re.search(r"^session_id:\s*(\S+)", stderr or "", re.MULTILINE)
+    session_id = m.group(1) if m else None
     if rc == 0 and reply:
         return {"status": "ok", "reply": reply}
-    if rc != 0 and any(m in stdout for m in TURN_LIMIT_MARKERS):
+    if rc != 0 and any(m2 in stdout for m2 in TURN_LIMIT_MARKERS):
         return {"status": "turn_budget", "exhausted": True, "partial_reply": reply,
+                "session_id": session_id,
                 "error": "the Bot hit its turn budget before finishing"}
     if rc == 0:
         return {"status": "empty", "error": "no reply text came back"}
     err = "\n".join(line for line in (stderr or "").splitlines()
                     if not line.strip().startswith("session_id:")).strip()
-    return {"status": "failed", "error": (err or reply or "unknown failure")[-1500:]}
+    verdict = {"status": "failed", "error": (err or reply or "unknown failure")[-1500:]}
+    if session_id:
+        verdict["session_id"] = session_id
+    return verdict
 
 
 def ask_agent(args: dict, **kwargs) -> str:
@@ -542,10 +551,17 @@ def ask_agent(args: dict, **kwargs) -> str:
     if verdict["status"] == "ok":
         return json.dumps({"ok": True, "name": name, "reply": verdict["reply"][-6000:]})
     if verdict["status"] == "turn_budget":
+        sid = verdict.get("session_id")
         return json.dumps({"ok": False, "name": name, "error_type": "turn_budget",
                            "exhausted": True, "turns": turns,
+                           "session_id": sid,
                            "partial_reply": (verdict.get("partial_reply") or "")[-3000:] or None,
                            "error": (f"{name} hit its {turns}-turn budget before finishing. "
                                      "The partial reply is real work, not garbage. Retry with "
-                                     "a higher max_turns, or split the task into smaller asks.")})
-    return json.dumps({"ok": False, "name": name, "error": verdict["error"]})
+                                     "a higher max_turns, split the task into smaller asks, "
+                                     + (f"or resume the session with: hermes --resume {sid} -p {name}."
+                                        if sid else "")).strip()})
+    failed = {"ok": False, "name": name, "error": verdict["error"]}
+    if verdict.get("session_id"):
+        failed["session_id"] = verdict["session_id"]
+    return json.dumps(failed)
