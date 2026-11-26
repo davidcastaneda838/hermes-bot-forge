@@ -6,7 +6,9 @@ has to answer — newest first, so an agent can say "three things need you" with
 
 Read-only. An item is open until the same Bot writes a later entry that resolves it.
 """
+import json
 import re
+import sys
 from datetime import datetime, UTC
 from pathlib import Path
 
@@ -86,3 +88,37 @@ def waiting_on_user(root: Path, now: datetime | None = None) -> dict:
             "summary": ("nothing is waiting on you" if not items else
                         "; ".join(f"{i['display_name']}: {i['title']}" for i in items[:3])
                         + (f" (+{len(items) - 3} more)" if len(items) > 3 else ""))}
+
+
+def scan(spec: dict) -> dict:
+    """The one JSON result waiting_on reports: open journal items per Bot, newest first.
+    Read-only — walks profile journals and touches nothing."""
+    root = Path(spec.get("hermes_root") or str(Path.home() / ".hermes"))
+    profiles = root / "profiles"
+    bots = [d for d in sorted(profiles.iterdir()) if forge.is_live_profile(d)] if profiles.is_dir() else []
+    items = []
+    for pdir in bots:
+        for item in open_items(pdir):
+            items.append({"bot": pdir.name, "date": item["since"],
+                          "severity": item["status"], "excerpt": item["detail"]})
+    items.sort(key=lambda i: i["date"], reverse=True)
+    return {"ok": True, "items": items, "scanned": len(bots)}
+
+
+def main() -> int:
+    try:
+        if len(sys.argv) < 2 or sys.argv[1] == "-":
+            raw = sys.stdin.read()
+        else:
+            raw = Path(sys.argv[1]).read_text(encoding="utf-8")
+        result = scan(json.loads(raw))
+    except json.JSONDecodeError as exc:
+        result = {"ok": False, "error": f"input is not valid JSON: {exc}"}
+    except Exception as exc:  # the tool user gets a reason, never a traceback
+        result = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    print(json.dumps(result, indent=2))
+    return 0 if result.get("ok") else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

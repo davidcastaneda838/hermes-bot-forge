@@ -42,6 +42,7 @@ import policy  # noqa: E402
 import portable  # noqa: E402
 import forkops  # noqa: E402,F401
 import survey  # noqa: E402
+import waiting  # noqa: E402,F401
 import team  # noqa: E402
 import takeover  # noqa: E402
 import tools  # noqa: E402

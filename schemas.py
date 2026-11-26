@@ -576,6 +576,21 @@ DELEGATE_OUTSIDE = {
 }
 
 
+WAITING_ON = {
+    "name": "waiting_on",
+    "description": (
+        "Report which Bots are blocked or waiting on the user, scanned read-only from their "
+        "work journals. Returns unresolved blocked/failed journal entries newest first as "
+        "(bot, date, severity, excerpt), plus how many Bots were scanned. No arguments."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,
+    },
+}
+
+
 FORK_OPS = {
     "name": "fork_ops",
     "description": (

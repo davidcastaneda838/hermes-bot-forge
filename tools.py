@@ -138,6 +138,30 @@ def fork_ops(args: dict, **kwargs) -> str:
         return json.dumps({"ok": False, "error": _clean(p.stderr or out)[-1500:]})
 
 
+_WAITING_ENV_KEYS = ("PATH", "PATHEXT", "SYSTEMROOT", "SYSTEMDRIVE", "LOCALAPPDATA",
+                     "APPDATA", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "TEMP", "TMP")
+
+
+def waiting_on(args: dict, **kwargs) -> str:
+    """What is waiting on the user, across every Bot. Runs waiting.py in a subprocess;
+    strictly read-only, so the child gets a stripped environment and the plugin dir as cwd."""
+    spec = {"hermes_root": str(hermes_root())}
+    env = {key: os.environ[key] for key in _WAITING_ENV_KEYS if os.environ.get(key)}
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    try:
+        p = subprocess.run([sys.executable, str(PLUGIN_DIR / "waiting.py"), "-"],
+                           input=json.dumps(spec), capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=120,
+                           env=env, cwd=str(PLUGIN_DIR))
+    except subprocess.TimeoutExpired:
+        return json.dumps({"ok": False, "error": "waiting_on timed out after 2 min"})
+    out = p.stdout.strip()
+    try:
+        return json.dumps(json.loads(out[out.index("{"):]))
+    except ValueError:
+        return json.dumps({"ok": False, "error": _clean(p.stderr or out)[-1500:]})
+
+
 def create_team(args: dict, settings: dict | None = None, **kwargs) -> str:
     # Check every explicit route before building the lead or any member.
     specs = [args.get("lead")] + list(args.get("members") or [])
