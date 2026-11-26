@@ -111,6 +111,25 @@ def _proc_start(pid: int) -> float | None:
     /proc called every gateway stale, and the only fix it offered (restart the gateway) could
     never clear it.
     """
+    if os.name == "nt":
+        # /proc does not exist on Windows - read the real start time via GetProcessTimes.
+        # Same failure contract as the /proc path below: None means unknown, never 0.0.
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        k32.OpenProcess.restype = ctypes.c_void_p
+        k32.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+        k32.GetProcessTimes.argtypes = [ctypes.c_void_p] + [ctypes.c_void_p] * 4
+        h = k32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return None
+        try:
+            cre, ext, ker, usr = (ctypes.c_ulonglong() for _ in range(4))
+            if not k32.GetProcessTimes(h, ctypes.byref(cre), ctypes.byref(ext),
+                                       ctypes.byref(ker), ctypes.byref(usr)):
+                return None
+            return cre.value / 10_000_000 - 11644473600.0  # 100ns ticks since 1601 -> unix epoch
+        finally:
+            k32.CloseHandle(ctypes.c_void_p(h))
     try:
         return Path(f"/proc/{pid}").stat().st_mtime
     except OSError:
